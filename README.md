@@ -2,7 +2,7 @@
 
 A 1440×920 canvas where a thin line trails behind your mouse, with live controls tucked into a Settings menu. Pure HTML/CSS/JS — no build step, no dependencies.
 
-**[Live demo](https://YOUR_USERNAME.github.io/mouse-trail-canvas/)**
+**[Live demo](https://joshofcourse.github.io/mouse-trail-canvas/)**
 
 ## Features
 

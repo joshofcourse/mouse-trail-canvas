@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mouse Trail Canvas</title>
+<style>
+  :root{
+    --bg:#f5f3ee; --surface:#ffffff; --surface-2:#f1efe8;
+    --text:#1f1f1d; --text-2:#5f5e5a; --text-3:#8a8984;
+    --border:rgba(0,0,0,0.12); --border-2:rgba(0,0,0,0.22);
+    --success:#3b6d11; --danger:#a32d2d;
+    --radius:8px; --radius-lg:12px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1a1a18; --surface:#242422; --surface-2:#2c2c2a;
+      --text:#f1efe8; --text-2:#b4b2a9; --text-3:#888780;
+      --border:rgba(255,255,255,0.14); --border-2:rgba(255,255,255,0.24);
+      --success:#97c459; --danger:#f09595;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font); line-height:1.5;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:20px;}
+  .wrap{width:100%; max-width:1440px; display:flex; flex-direction:column; gap:12px;}
+  .toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  button, .btn{font-family:inherit; font-size:13px; padding:7px 14px; background:transparent;
+    color:var(--text); border:0.5px solid var(--border-2); border-radius:var(--radius);
+    cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:background .15s, transform .05s;}
+  button:hover, .btn:hover{background:var(--surface-2);}
+  button:active{transform:scale(0.98);}
+  .push{margin-left:auto;}
+  #panel{background:var(--surface-2); border:0.5px solid var(--border); border-radius:var(--radius-lg);
+    padding:16px 20px; display:none;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px 28px;}
+  .ctrl{display:flex; align-items:center; gap:10px;}
+  .ctrl label{font-size:13px; color:var(--text-2); min-width:82px;}
+  .ctrl output{font-size:13px; font-weight:500; min-width:34px; text-align:right;}
+  input[type=range]{flex:1; accent-color:var(--text-2);}
+  input[type=color]{width:44px; height:30px; padding:0; border:0.5px solid var(--border-2);
+    border-radius:var(--radius); background:none; cursor:pointer;}
+  .toggles{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .toggles label{display:flex; align-items:center; gap:7px; font-size:13px; color:var(--text-2); cursor:pointer;}
+  .save-row{grid-column:1/-1; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    border-top:0.5px solid var(--border); padding-top:14px;}
+  #saved{font-size:13px; color:var(--success); opacity:0; transition:opacity .3s;}
+  #bgname{font-size:13px; color:var(--text-3);}
+  #stage{position:relative; width:100%; aspect-ratio:1440/920; background:var(--surface-2);
+    background-image:url('background.jpg'); background-size:cover; background-position:center;
+    background-repeat:no-repeat; border:0.5px solid var(--border); border-radius:var(--radius-lg); overflow:hidden;}
+  #cv{position:absolute; inset:0; display:block; width:100%; height:100%; cursor:crosshair;}
+  #hint{position:absolute; top:12px; left:14px; font-size:13px; color:var(--text-3);
+    pointer-events:none; background:rgba(0,0,0,0.06); padding:2px 8px; border-radius:6px;}
+  h1{font-size:18px; font-weight:500; margin:0 0 4px;}
+  .sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="sr-only">Mouse trail canvas</h1>
+
+  <div class="toolbar">
+    <button id="menuBtn" aria-expanded="false">&#9881; Settings <span id="chev">&#9662;</span></button>
+    <label class="btn" for="bgfile">&#128247; Background</label>
+    <input type="file" id="bgfile" accept="image/*" style="display:none;">
+    <button id="clear" class="push">&#9003; Clear trail</button>
+  </div>
+
+  <div id="panel">
+    <div class="grid">
+      <div class="ctrl"><label>Trail length</label><input type="range" id="len" min="2" max="300" step="1" value="41"><output id="lenOut">41</output></div>
+      <div class="ctrl"><label>Thickness</label><input type="range" id="thick" min="0.5" max="16" step="0.5" value="1"><output id="thickOut">1</output></div>
+      <div class="ctrl"><label>Fade</label><input type="range" id="fade" min="0" max="100" step="1" value="37"><output id="fadeOut">37</output></div>
+      <div class="ctrl"><label>Smoothing</label><input type="range" id="smooth" min="0" max="90" step="1" value="35"><output id="smoothOut">35</output></div>
+      <div class="ctrl"><label>Color</label><input type="color" id="color" value="#3E6FD6"><span style="font-size:13px;color:var(--text-3);">stroke</span></div>
+      <div class="toggles">
+        <label><input type="checkbox" id="taper"> Taper</label>
+        <label><input type="checkbox" id="rainbow"> Rainbow</label>
+        <label><input type="checkbox" id="glow"> Glow</label>
+      </div>
+      <div class="save-row">
+        <button id="saveDef">&#128190; Save as default</button>
+        <button id="resetDef">Reset</button>
+        <span id="bgname">background.jpg</span>
+        <button id="bgclear" class="push">Remove bg</button>
+        <span id="saved">Saved &#10003;</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="stage">
+    <canvas id="cv" width="1440" height="920"></canvas>
+    <span id="hint">1440 &times; 920 — move your mouse to draw</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d'), stage=document.getElementById('stage');
+  const W=1440, H=920, KEY='mouseTrailDefaults';
+  const FALLBACK={ len:41, thick:1, fade:37, smooth:35, color:'#3E6FD6', taper:false, rainbow:false, glow:false, bg:null };
+
+  function loadDefaults(){
+    try{ const s=localStorage.getItem(KEY); if(s) return Object.assign({}, FALLBACK, JSON.parse(s)); }catch(e){}
+    return Object.assign({}, FALLBACK);
+  }
+  const P=loadDefaults();
+  const pts=[]; let mouse=null, target=null;
+
+  const els={ len:document.getElementById('len'), thick:document.getElementById('thick'),
+    fade:document.getElementById('fade'), smooth:document.getElementById('smooth'),
+    color:document.getElementById('color'), taper:document.getElementById('taper'),
+    rainbow:document.getElementById('rainbow'), glow:document.getElementById('glow') };
+  const outs={ len:document.getElementById('lenOut'), thick:document.getElementById('thickOut'),
+    fade:document.getElementById('fadeOut'), smooth:document.getElementById('smoothOut') };
+  const bgname=document.getElementById('bgname');
+
+  function applyBg(){
+    if(P.bg){ stage.style.backgroundImage="url('"+P.bg+"')"; bgname.textContent='saved background'; }
+    else{ stage.style.backgroundImage="url('background.jpg')"; bgname.textContent='background.jpg'; }
+  }
+  function applyToUI(){
+    els.len.value=P.len; els.thick.value=P.thick; els.fade.value=P.fade; els.smooth.value=P.smooth;
+    els.color.value=P.color; els.taper.checked=P.taper; els.rainbow.checked=P.rainbow; els.glow.checked=P.glow;
+    outs.len.textContent=Math.round(P.len); outs.thick.textContent=P.thick;
+    outs.fade.textContent=Math.round(P.fade); outs.smooth.textContent=Math.round(P.smooth);
+    applyBg();
+  }
+  applyToUI();
+
+  function num(id,key,float){ els[id].addEventListener('input',()=>{
+    P[key]=float?parseFloat(els[id].value):parseInt(els[id].value,10);
+    if(outs[key]) outs[key].textContent=float?P[key]:Math.round(P[key]);
+  });}
+  num('len','len',false); num('thick','thick',true); num('fade','fade',false); num('smooth','smooth',false);
+  els.color.addEventListener('input',()=>P.color=els.color.value);
+  ['taper','rainbow','glow'].forEach(k=>els[k].addEventListener('change',()=>P[k]=els[k].checked));
+
+  const menuBtn=document.getElementById('menuBtn'), panel=document.getElementById('panel'), chev=document.getElementById('chev');
+  menuBtn.addEventListener('click',()=>{
+    const open=panel.style.display==='none';
+    panel.style.display=open?'block':'none';
+    menuBtn.setAttribute('aria-expanded',open?'true':'false');
+    chev.innerHTML=open?'&#9652;':'&#9662;';
+  });
+
+  const saved=document.getElementById('saved');
+  function flash(msg,danger){ saved.textContent=msg||'Saved ✓'; saved.style.color=danger?'var(--danger)':'var(--success)'; saved.style.opacity='1'; setTimeout(()=>saved.style.opacity='0', danger?2600:1400); }
+  document.getElementById('saveDef').addEventListener('click',()=>{
+    try{ localStorage.setItem(KEY, JSON.stringify(P)); flash('Saved ✓'); }
+    catch(e){ flash(P.bg?'Image too large to save — settings only':'Could not save (storage blocked)', true);
+      try{ const noBg=Object.assign({},P,{bg:null}); localStorage.setItem(KEY, JSON.stringify(noBg)); }catch(e2){} }
+  });
+  document.getElementById('resetDef').addEventListener('click',()=>{
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    Object.assign(P, FALLBACK); applyToUI();
+  });
+
+  const bgfile=document.getElementById('bgfile');
+  bgfile.addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return;
+    const rd=new FileReader();
+    rd.onload=()=>{ P.bg=rd.result; applyBg(); bgname.textContent=f.name+' — click Save as default to keep'; };
+    rd.readAsDataURL(f);
+  });
+  document.getElementById('bgclear').addEventListener('click',()=>{ P.bg=null; stage.style.backgroundImage='none'; bgname.textContent='none'; bgfile.value=''; });
+  document.getElementById('clear').addEventListener('click',()=>{ pts.length=0; });
+
+  const rect=()=>cv.getBoundingClientRect();
+  function input(cx,cy){ const r=rect();
+    target={x:(cx-r.left)*(W/r.width), y:(cy-r.top)*(H/r.height)};
+    if(!mouse) mouse={...target};
+    const h=document.getElementById('hint'); if(h) h.style.display='none';
+  }
+  cv.addEventListener('mousemove',e=>input(e.clientX,e.clientY));
+  cv.addEventListener('mouseleave',()=>target=null);
+  cv.addEventListener('touchmove',e=>{ const t=e.touches[0]; input(t.clientX,t.clientY); e.preventDefault(); },{passive:false});
+
+  function draw(){
+    if(target){
+      const ease=1-(P.smooth/100)*0.92;
+      mouse.x+=(target.x-mouse.x)*ease; mouse.y+=(target.y-mouse.y)*ease;
+      const last=pts[pts.length-1];
+      if(!last || Math.hypot(mouse.x-last.x, mouse.y-last.y)>0.5) pts.push({x:mouse.x,y:mouse.y});
+    }
+    while(pts.length>P.len) pts.shift();
+    ctx.clearRect(0,0,W,H);
+    if(pts.length>1){
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      for(let i=1;i<pts.length;i++){
+        const t=i/(pts.length-1);
+        const alpha=P.fade===0?1:(1-P.fade/100)+(P.fade/100)*t;
+        ctx.beginPath(); ctx.moveTo(pts[i-1].x,pts[i-1].y); ctx.lineTo(pts[i].x,pts[i].y);
+        ctx.lineWidth=P.taper?Math.max(0.3,P.thick*t):P.thick;
+        let col=P.color; if(P.rainbow) col='hsl('+((t*300+i*4)%360)+',75%,60%)';
+        ctx.globalAlpha=alpha; ctx.strokeStyle=col;
+        ctx.shadowBlur=P.glow?P.thick*3:0; ctx.shadowColor=P.glow?col:'transparent';
+        ctx.stroke();
+      }
+      ctx.globalAlpha=1; ctx.shadowBlur=0;
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
